@@ -92,3 +92,5 @@ ENV/
 *~
 # directory that stores training data
 data/
+# obsolete code
+old_code/
