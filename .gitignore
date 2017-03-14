@@ -94,3 +94,5 @@ ENV/
 data/
 # obsolete code
 old_code/
+# temp files
+tmp/
