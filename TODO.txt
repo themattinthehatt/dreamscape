@@ -1,7 +1,7 @@
 TODO
 - (DONE 12/16) vae for mnist
 - (DONE 03/16) refactor code
-- cvae for mnist
+- (DONE 03/16) cvae for mnist
 - vae for cifar
 - dc-vae for cifar
 - dc-cvae for cifar
