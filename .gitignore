@@ -88,6 +88,9 @@ ENV/
 # Rope project settings
 .ropeproject
 
+# Pycharm project settings
+.idea/
+
 # temp files
 *~
 # directory that stores training data
