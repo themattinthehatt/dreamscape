@@ -1,4 +1,4 @@
-TODO
+TODO (VAES)
 - (DONE 12/16) vae for mnist
 - (DONE 03/16) refactor code
 - (DONE 03/16) cvae for mnist
@@ -7,10 +7,24 @@ TODO
 - dc-cvae for cifar
 - dc-vae for imagenet
 - dc-cvae for imagenet
+
+TODO (GANS)
 - gan for mnist
+    - choose cost functions
+    - train w/ labels/one-sided label smoothing?
+- cgan for mnist
 - dc-gan for cifar
+    - reference batch normalization/virtual batch normalization
+- dc-cgan for cifar
 - dc-gan for imagenet
+- dc-cgan for imagenet
+
+TODO (OTHER)
+- consolidate vae and cvae into single class?
+- abstract data loading/management class similar to tf's mnist
+- plug and play
 - visualization in open(web?)gl
+
 
 Resources:
 - Generative visual manipulation on the natural image manifold paper
@@ -18,15 +32,9 @@ Resources:
 - DCGAN papers
   Unsupervised Rep Learning w DCGANs
       https://arxiv.org/abs/1511.06434
-  NIPS16 tutorial on GANs
-      https://arxiv.org/pdf/1701.00160.pdf
 - DCGAN code
   https://github.com/Newmu/dcgan_code
-- VAE papers
-- VAE code/blogs
 - autoencoding beyond pixels using a learned similarity metric
   https://arxiv.org/pdf/1512.09300.pdf
 - high resolution: CPPN w/ GAN+VAE
   http://blog.otoro.net/2016/04/01/generating-large-images-from-latent-vectors/
-
-plug-and-play cnns?
