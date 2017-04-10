@@ -9,9 +9,8 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
-mnist = input_data.read_data_sets(
-    '/home/mattw/Dropbox/git/dreamscape/data/mnist', one_hot=False)
+
+import DataReader as Data
 
 
 class VAE(object):
@@ -19,12 +18,18 @@ class VAE(object):
 
     def __init__(self,
                  layers_encoder=None, layer_latent=None, layers_decoder=None,
-                 act_func=tf.nn.relu, batch_size=100, learning_rate=1e-3):
+                 act_func=tf.nn.relu, batch_size=100, learning_rate=1e-3,
+                 data_dir=None, data_type='mnist'):
         """Constructor for VAE class"""
 
-        assert layers_encoder, "Must specify layer sizes for encoder"
-        assert layer_latent, "Must specify number of latent dimensions"
-        assert layers_decoder, "Must specify layer sizes for decoder"
+        assert layers_encoder is not None, \
+            'Must specify layer sizes for encoder'
+        assert layer_latent is not None, \
+            'Must specify number of latent dimensions'
+        assert layers_decoder is not None, \
+            'Must specify layer sizes for decoder'
+        assert data_dir is not None, \
+            'Must specify data directory'
 
         self.layers_encoder = layers_encoder
         self.layer_latent = layer_latent
@@ -39,6 +44,14 @@ class VAE(object):
         self.num_lvs = self.layer_latent
         self.num_layers_enc = len(self.layers_encoder)
         self.num_layers_dec = len(self.layers_decoder)
+
+        # get data handler
+        if data_type is 'mnist':
+            self.data = Data.DataReaderMNIST(data_dir, one_hot=False)
+        elif data_type is 'cifar':
+            self.data = Data.DataReaderCIFAR(data_dir, one_hot=False)
+        elif data_type is 'imagenet':
+            self.data = Data.DataReaderImagenet(data_dir, one_hot=False)
 
         # for saving and restoring models
         self.graph = tf.Graph()  # must be initialized before graph creation
@@ -60,7 +73,8 @@ class VAE(object):
             # for saving and restoring models
             self.saver = tf.train.Saver()  # must be init after var creation
             # add variable initialization op to graph
-            self.init = tf.global_variables_initializer()
+            # self.init = tf.global_variables_initializer()
+            self.init = tf.initialize_all_variables()
 
     @staticmethod
     def weight_variable(shape, name='None'):
@@ -147,7 +161,7 @@ class VAE(object):
         # transform estimated mean and log variance into a sampled value
         # of the latent state using z = mu + sigma*epsilon
         self.z = tf.add(self.z_mean,
-                        tf.multiply(tf.sqrt(tf.exp(self.z_log_var)), self.eps))
+                        tf.mul(tf.sqrt(tf.exp(self.z_log_var)), self.eps))
 
         # push data through the decoding function to reconstruct data
         z_dec = []
@@ -196,11 +210,11 @@ class VAE(object):
 
             for epoch in range(training_epochs):
 
-                num_batches = int(mnist.train.num_examples / batch_size)
+                num_batches = int(self.data.train.num_examples / batch_size)
 
                 for batch in range(num_batches):
                     # get batch of data for this training step
-                    x = mnist.train.next_batch(batch_size)
+                    x = self.data.train.next_batch(batch_size)
 
                     # draw random samples for latent layer
                     eps = np.random.normal(
@@ -229,7 +243,7 @@ class VAE(object):
 
         for tr_iter in range(training_iters):
             # get batch of data for this training step
-            x = mnist.train.next_batch(batch_size)
+            x = self.data.train.next_batch(batch_size)
 
             # draw random samples for latent layer
             eps = np.random.normal(size=(self.batch_size, self.num_lvs))

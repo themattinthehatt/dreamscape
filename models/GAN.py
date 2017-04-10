@@ -9,9 +9,8 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
-mnist = input_data.read_data_sets(
-    '/home/mattw/Dropbox/git/dreamscape/data/mnist', one_hot=False)
+
+import DataReader as Data
 
 
 class GAN(object):
@@ -19,13 +18,16 @@ class GAN(object):
 
     def __init__(self,
                  layers_gen=None, layers_disc=None,
-                 act_func=tf.nn.relu, batch_size=100, learning_rate=1e-3):
+                 act_func=tf.nn.relu, batch_size=100, learning_rate=1e-3,
+                 data_dir=None, data_type='mnist'):
         """ Constructor for GAN class """
 
         assert layers_gen is not None, \
-            "Must specify layer sizes for generator"
+            'Must specify layer sizes for generator'
         assert layers_disc is not None, \
-            "Must specify layer sizes for discriminator"
+            'Must specify layer sizes for discriminator'
+        assert data_dir is not None, \
+            'Must specify data directory'
 
         self.layers_gen = layers_gen
         self.layers_disc = layers_disc
@@ -37,6 +39,14 @@ class GAN(object):
         # define useful constants
         self.num_layers_gen = len(self.layers_gen)
         self.num_layers_disc = len(self.layers_disc)
+
+        # get data handler
+        if data_type is 'mnist':
+            self.data = Data.DataReaderMNIST(data_dir, one_hot=False)
+        elif data_type is 'cifar':
+            self.data = Data.DataReaderCIFAR(data_dir, one_hot=False)
+        elif data_type is 'imagenet':
+            self.data = Data.DataReaderImagenet(data_dir, one_hot=False)
 
         # for saving and restoring models
         self.graph = tf.Graph()  # must be initialized before graph creation
@@ -195,12 +205,12 @@ class GAN(object):
 
             for epoch in range(training_epochs):
 
-                num_batches = int(mnist.train.num_examples / batch_size)
+                num_batches = int(self.data.train.num_examples / batch_size)
 
                 for batch in range(num_batches):
 
                     # one step of optimization routine for disc network
-                    x = mnist.train.next_batch(batch_size)
+                    x = self.data.train.next_batch(batch_size)
                     z = np.random.randn(self.batch_size, self.layers_gen[0])
                     sess.run(self.train_step_disc,
                              feed_dict={self.gen_input: z,
@@ -239,7 +249,7 @@ class GAN(object):
         #
         # for tr_iter in range(training_iters):
         #     # get batch of data for this training step
-        #     x = mnist.train.next_batch(batch_size)
+        #     x = self.data.train.next_batch(batch_size)
         #
         #     # draw random samples for latent layer
         #     eps = np.random.normal(size=(self.batch_size, self.layers_gen[0]))
