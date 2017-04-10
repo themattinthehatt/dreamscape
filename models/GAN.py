@@ -10,24 +10,19 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-import DataReader as Data
-
 
 class GAN(object):
     """Generative Adversarial Network class"""
 
     def __init__(self,
                  layers_gen=None, layers_disc=None,
-                 act_func=tf.nn.relu, batch_size=100, learning_rate=1e-3,
-                 data_dir=None, data_type='mnist'):
+                 act_func=tf.nn.relu, batch_size=100, learning_rate=1e-3):
         """ Constructor for GAN class """
 
         assert layers_gen is not None, \
             'Must specify layer sizes for generator'
         assert layers_disc is not None, \
             'Must specify layer sizes for discriminator'
-        assert data_dir is not None, \
-            'Must specify data directory'
 
         self.layers_gen = layers_gen
         self.layers_disc = layers_disc
@@ -39,14 +34,6 @@ class GAN(object):
         # define useful constants
         self.num_layers_gen = len(self.layers_gen)
         self.num_layers_disc = len(self.layers_disc)
-
-        # get data handler
-        if data_type is 'mnist':
-            self.data = Data.DataReaderMNIST(data_dir, one_hot=False)
-        elif data_type is 'cifar':
-            self.data = Data.DataReaderCIFAR(data_dir, one_hot=False)
-        elif data_type is 'imagenet':
-            self.data = Data.DataReaderImagenet(data_dir, one_hot=False)
 
         # for saving and restoring models
         self.graph = tf.Graph()  # must be initialized before graph creation
@@ -194,10 +181,13 @@ class GAN(object):
         self.train_step_disc = tf.train.AdamOptimizer(self.learning_rate). \
             minimize(self.loss_disc, var_list=self.params_disc)
 
-    def train(self, sess, batch_size=None,
+    def train(self, sess, data=None,
+              batch_size=None,
               training_epochs=75,
               display_epochs=1):
         """Network training by specifying epochs"""
+
+        assert data is not None, 'Must specify data reader object'
 
         with self.graph.as_default():
 
@@ -205,19 +195,19 @@ class GAN(object):
 
             for epoch in range(training_epochs):
 
-                num_batches = int(self.data.train.num_examples / batch_size)
+                num_batches = int(data.train.num_examples / batch_size)
 
                 for batch in range(num_batches):
 
                     # one step of optimization routine for disc network
-                    x = self.data.train.next_batch(batch_size)
-                    z = np.random.randn(self.batch_size, self.layers_gen[0])
+                    x = data.train.next_batch(batch_size)
+                    z = np.random.randn(batch_size, self.layers_gen[0])
                     sess.run(self.train_step_disc,
                              feed_dict={self.gen_input: z,
                                         self.img_real: x[0]})
 
                     # one step of optimization routine for gen network
-                    z = np.random.randn(self.batch_size, self.layers_gen[0])
+                    z = np.random.randn(batch_size, self.layers_gen[0])
                     sess.run(self.train_step_gen,
                              feed_dict={self.gen_input: z})
 
@@ -237,7 +227,8 @@ class GAN(object):
                           (epoch, train_accuracy_gen))
                     print('')
 
-    def train_iters(self, sess, batch_size=None,
+    def train_iters(self, sess, data,
+                    batch_size=None,
                     training_iters=20000,
                     display_iters=2000):
         """ Network training by specifying number of iterations rather than 
@@ -245,25 +236,28 @@ class GAN(object):
         Used for easily generating sample outputs during training
         """
 
-        # batch_size = self.batch_size if batch_size is None else batch_size
-        #
-        # for tr_iter in range(training_iters):
-        #     # get batch of data for this training step
-        #     x = self.data.train.next_batch(batch_size)
-        #
-        #     # draw random samples for latent layer
-        #     eps = np.random.normal(size=(self.batch_size, self.layers_gen[0]))
-        #
-        #     # one step of optimization routine
-        #     sess.run(self.train_step, feed_dict={self.x: x[0],
-        #                                          self.eps: eps})
-        #
-        # # print training updates
-        # if display_iters is not None and tr_iter % display_iters == 0:
-        #     train_accuracy = sess.run(self.cost, feed_dict={self.x: x[0],
-        #                                                     self.eps: eps})
-        #     print("Iter %03d: cost = %2.5f" % (tr_iter, train_accuracy))
-        pass
+        assert data is not None, 'Must specify data reader object'
+
+        with self.graph.as_default():
+
+            batch_size = self.batch_size if batch_size is None else batch_size
+
+            for tr_iter in range(training_iters):
+                # get batch of data for this training step
+                x = data.train.next_batch(batch_size)
+
+                # draw random samples for latent layer
+                eps = np.random.normal(size=(batch_size, self.layers_gen[0]))
+
+                # one step of optimization routine
+                sess.run(self.train_step, feed_dict={self.x: x[0],
+                                                     self.eps: eps})
+
+            # print training updates
+            if display_iters is not None and tr_iter % display_iters == 0:
+                train_accuracy = sess.run(self.cost, feed_dict={self.x: x[0],
+                                                                self.eps: eps})
+                print("Iter %03d: cost = %2.5f" % (tr_iter, train_accuracy))
 
     def save_model(self, sess, save_file=None):
         """ Save model parameters """

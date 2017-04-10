@@ -10,16 +10,13 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-import DataReader as Data
-
 
 class VAE(object):
     """Variational Autoencoder class"""
 
     def __init__(self,
                  layers_encoder=None, layer_latent=None, layers_decoder=None,
-                 act_func=tf.nn.relu, batch_size=100, learning_rate=1e-3,
-                 data_dir=None, data_type='mnist'):
+                 act_func=tf.nn.relu, batch_size=100, learning_rate=1e-3):
         """Constructor for VAE class"""
 
         assert layers_encoder is not None, \
@@ -28,8 +25,6 @@ class VAE(object):
             'Must specify number of latent dimensions'
         assert layers_decoder is not None, \
             'Must specify layer sizes for decoder'
-        assert data_dir is not None, \
-            'Must specify data directory'
 
         self.layers_encoder = layers_encoder
         self.layer_latent = layer_latent
@@ -44,14 +39,6 @@ class VAE(object):
         self.num_lvs = self.layer_latent
         self.num_layers_enc = len(self.layers_encoder)
         self.num_layers_dec = len(self.layers_decoder)
-
-        # get data handler
-        if data_type is 'mnist':
-            self.data = Data.DataReaderMNIST(data_dir, one_hot=False)
-        elif data_type is 'cifar':
-            self.data = Data.DataReaderCIFAR(data_dir, one_hot=False)
-        elif data_type is 'imagenet':
-            self.data = Data.DataReaderImagenet(data_dir, one_hot=False)
 
         # for saving and restoring models
         self.graph = tf.Graph()  # must be initialized before graph creation
@@ -199,10 +186,13 @@ class VAE(object):
         self.train_step = tf.train.AdamOptimizer(self.learning_rate). \
             minimize(self.cost)
 
-    def train(self, sess, batch_size=None,
+    def train(self, sess, data=None,
+              batch_size=None,
               training_epochs=75,
               display_epochs=1):
         """Network training by specifying epochs"""
+
+        assert data is not None, 'Must specify data reader object'
 
         with self.graph.as_default():
 
@@ -210,15 +200,14 @@ class VAE(object):
 
             for epoch in range(training_epochs):
 
-                num_batches = int(self.data.train.num_examples / batch_size)
+                num_batches = int(data.train.num_examples / batch_size)
 
                 for batch in range(num_batches):
                     # get batch of data for this training step
-                    x = self.data.train.next_batch(batch_size)
+                    x = data.train.next_batch(batch_size)
 
                     # draw random samples for latent layer
-                    eps = np.random.normal(
-                        size=(self.batch_size, self.num_lvs))
+                    eps = np.random.normal(size=(batch_size, self.num_lvs))
 
                     # one step of optimization routine
                     sess.run(self.train_step, feed_dict={self.x: x[0],
@@ -231,7 +220,8 @@ class VAE(object):
                                                          self.eps: eps})
                     print('Epoch %03d: cost = %2.5f' % (epoch, train_accuracy))
 
-    def train_iters(self, sess, batch_size=None,
+    def train_iters(self, sess, data=None,
+                    batch_size=None,
                     training_iters=20000,
                     display_iters=2000):
         """
@@ -239,24 +229,28 @@ class VAE(object):
         Used for easily generating sample outputs during training
         """
 
-        batch_size = self.batch_size if batch_size is None else batch_size
+        assert data is not None, 'Must specify data reader object'
 
-        for tr_iter in range(training_iters):
-            # get batch of data for this training step
-            x = self.data.train.next_batch(batch_size)
+        with self.graph.as_default():
 
-            # draw random samples for latent layer
-            eps = np.random.normal(size=(self.batch_size, self.num_lvs))
+            batch_size = self.batch_size if batch_size is None else batch_size
 
-            # one step of optimization routine
-            sess.run(self.train_step, feed_dict={self.x: x[0],
-                                                 self.eps: eps})
+            for tr_iter in range(training_iters):
+                # get batch of data for this training step
+                x = data.train.next_batch(batch_size)
 
-        # print training updates
-        if display_iters is not None and tr_iter % display_iters == 0:
-            train_accuracy = sess.run(self.cost, feed_dict={self.x: x[0],
-                                                            self.eps: eps})
-            print('Iter %03d: cost = %2.5f' % (tr_iter, train_accuracy))
+                # draw random samples for latent layer
+                eps = np.random.normal(size=(batch_size, self.num_lvs))
+
+                # one step of optimization routine
+                sess.run(self.train_step, feed_dict={self.x: x[0],
+                                                     self.eps: eps})
+
+            # print training updates
+            if display_iters is not None and tr_iter % display_iters == 0:
+                train_accuracy = sess.run(self.cost, feed_dict={self.x: x[0],
+                                                                self.eps: eps})
+                print('Iter %03d: cost = %2.5f' % (tr_iter, train_accuracy))
 
     def generate(self, sess, z_mean=None):
         """ 
