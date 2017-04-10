@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@author: Matt Whiteway, March 2017
-VAE class implements a variational autoencoder
+@author: Matt Whiteway, April 2017
+CVAE class implements a conditional variational autoencoder
 """
 
 from __future__ import print_function
@@ -13,14 +13,15 @@ import tensorflow as tf
 import DataReader as Data
 
 
-class VAE(object):
-    """Variational Autoencoder class"""
+class CVAE(object):
+    """ Conditional Variational Autoencoder class """
 
     def __init__(self,
                  layers_encoder=None, layer_latent=None, layers_decoder=None,
+                 num_categories=10,
                  act_func=tf.nn.relu, batch_size=100, learning_rate=1e-3,
                  data_dir=None, data_type='mnist'):
-        """Constructor for VAE class"""
+        """ Constructor for CVAE class """
 
         assert layers_encoder is not None, \
             'Must specify layer sizes for encoder'
@@ -31,10 +32,14 @@ class VAE(object):
         assert data_dir is not None, \
             'Must specify data directory'
 
+        self.num_categories = num_categories
         self.layers_encoder = layers_encoder
+        # concatenation of input and labels
+        self.layers_encoder[0] += self.num_categories
         self.layer_latent = layer_latent
         self.layers_decoder = layers_decoder
-        self.layers_decoder.insert(0, layer_latent)  # helps with weight init
+        # concatenation of latent variables and labels (helps with weight init)
+        self.layers_decoder.insert(0, self.layer_latent + self.num_categories)
 
         self.act_func = act_func
         self.batch_size = batch_size
@@ -58,10 +63,15 @@ class VAE(object):
 
         with self.graph.as_default():
             # create placeholders for input and random values
-            self.x = tf.placeholder(tf.float32,
-                                    shape=[None, self.layers_encoder[0]])
-            self.eps = tf.placeholder(tf.float32,
-                                      shape=[None, self.num_lvs])
+            self.x = tf.placeholder(
+                tf.float32,
+                shape=[None, self.layers_encoder[0] - self.num_categories])
+            self.labels = tf.placeholder(
+                tf.float32,
+                shape=[None, self.num_categories])
+            self.eps = tf.placeholder(
+                tf.float32,
+                shape=[None, self.num_lvs])
 
             # initialize weights and create model
             self._initialize_weights()
@@ -73,23 +83,22 @@ class VAE(object):
             # for saving and restoring models
             self.saver = tf.train.Saver()  # must be init after var creation
             # add variable initialization op to graph
-            self.init = tf.global_variables_initializer()
-            # self.init = tf.initialize_all_variables()
+            self.init = tf.initialize_all_variables()
 
     @staticmethod
     def weight_variable(shape, name='None'):
-        """Utility method to clean up initialization"""
+        """ Utility method to clean up initialization """
         initial = tf.truncated_normal(shape, stddev=0.1)
         return tf.Variable(initial, name=name)
 
     @staticmethod
     def bias_variable(shape, name='None'):
-        """Utility method to clean up initialization"""
+        """ Utility method to clean up initialization """
         initial = tf.constant(0.0, shape=shape)
         return tf.Variable(initial, name=name)
 
     def _initialize_weights(self):
-        """Initialize weights and biases in model"""
+        """ Initialize weights and biases in model """
 
         # initialize weights and biases in encoding model
         self.weights_enc = []
@@ -115,7 +124,7 @@ class VAE(object):
                 self.bias_variable([self.layers_decoder[i + 1]],
                                    name=str('biases_dec_%02i' % i)))
 
-        # initialize weights for means and stds of stochastic layer
+        # intialize weights for means and stds of stochastic layer
         self.weights_mean = self.weight_variable(
             [self.layers_encoder[-1], self.num_lvs],
             name='weights_mean')
@@ -128,9 +137,8 @@ class VAE(object):
                                                  name='biases_log_var')
 
     def _define_recognition_network(self):
-        """ 
-        Create a recognition network to transform inputs into its latent 
-        representation
+        """ Create a recognition network to transform inputs into
+        its latent represenation
         """
 
         # push data through the encoding function to determine mean and std
@@ -138,7 +146,7 @@ class VAE(object):
         z_enc = []
         for i in range(self.num_layers_enc):
             if i == 0:
-                z_enc.append(self.x)
+                z_enc.append(tf.concat(1, [self.x, self.labels]))
             else:
                 z_enc.append(self.act_func(tf.add(
                     tf.matmul(z_enc[i - 1], self.weights_enc[i - 1]),
@@ -153,8 +161,7 @@ class VAE(object):
                                 self.biases_log_var)
 
     def _define_generator_network(self):
-        """ 
-        Create a generator network to transform a random sample
+        """ Create a generator network to transform a random sample
         in the latent space into an image
         """
 
@@ -168,7 +175,8 @@ class VAE(object):
         for i in range(self.num_layers_dec - 1):
             if i == 0:
                 z_dec.append(self.act_func(tf.add(
-                    tf.matmul(self.z, self.weights_dec[i]),
+                    tf.matmul(tf.concat(1, [self.z, self.labels]),
+                              self.weights_dec[i]),
                     self.biases_dec[i])))
             else:
                 z_dec.append(self.act_func(tf.add(
@@ -179,8 +187,7 @@ class VAE(object):
         self.x_recon = z_dec[-1]
 
     def _define_loss_optimizer(self):
-        """ 
-        Create the loss function that will be used to optimize
+        """ Create the loss function that will be used to optimize
         model parameters as well as define the optimizer
         """
 
@@ -202,7 +209,7 @@ class VAE(object):
     def train(self, sess, batch_size=None,
               training_epochs=75,
               display_epochs=1):
-        """Network training by specifying epochs"""
+        """ Network training by specifying epochs """
 
         with self.graph.as_default():
 
@@ -222,20 +229,21 @@ class VAE(object):
 
                     # one step of optimization routine
                     sess.run(self.train_step, feed_dict={self.x: x[0],
+                                                         self.labels: x[1],
                                                          self.eps: eps})
 
                 # print training updates
                 if display_epochs is not None and epoch % display_epochs == 0:
                     train_accuracy = sess.run(self.cost,
                                               feed_dict={self.x: x[0],
+                                                         self.labels: x[1],
                                                          self.eps: eps})
-                    print('Epoch %03d: cost = %2.5f' % (epoch, train_accuracy))
+                    print("Epoch %03d: cost = %2.5f" % (epoch, train_accuracy))
 
     def train_iters(self, sess, batch_size=None,
                     training_iters=20000,
                     display_iters=2000):
-        """
-        Network training by specifying number of iterations rather than epochs
+        """ Network training by specifying number of iterations rather than epochs
         Used for easily generating sample outputs during training
         """
 
@@ -250,44 +258,81 @@ class VAE(object):
 
             # one step of optimization routine
             sess.run(self.train_step, feed_dict={self.x: x[0],
+                                                 self.labels: x[1],
                                                  self.eps: eps})
 
         # print training updates
         if display_iters is not None and tr_iter % display_iters == 0:
             train_accuracy = sess.run(self.cost, feed_dict={self.x: x[0],
+                                                            self.labels: x[1],
                                                             self.eps: eps})
-            print('Iter %03d: cost = %2.5f' % (tr_iter, train_accuracy))
+            print("Iter %03d: cost = %2.5f" % (tr_iter, train_accuracy))
 
-    def generate(self, sess, z_mean=None):
-        """ 
-        Sample the network and generate an image 
+    def generate(self, sess, z_mean=None, label=None):
+        """ Sample the network and generate an image 
 
         If z_mean is None, a random point is generated using the prior in
         the latent space, else z_mean is used as the point in latent space
+
+        If label is None, a random label is generated using a uniform 
+        distribution over the categories, else label should be an integer
+        that will be converted into a one-hot representation if not already
         """
 
         if z_mean is None:
             z_mean = np.random.normal(size=self.num_lvs)
 
-        return sess.run(self.x_recon, feed_dict={self.z: z_mean})
+        if label is None:
+            pos = int(
+                np.floor(np.random.uniform(low=0.0, high=self.num_categories)))
+            label = np.zeros(shape=(1, self.num_categories))
+            label[:, pos] = 1
+        elif len(label.shape) == 1:
+            pos = label
+            label = np.zeros(shape=(1, self.num_categories))
+            label[:, pos] = 1
 
-    def recognize(self, sess, x):
-        """Transform a given input into its latent representation"""
-        return sess.run(self.z_mean, feed_dict={self.x: x})
+        return sess.run(self.x_recon,
+                        feed_dict={self.z: z_mean, self.labels: label})
 
-    def reconstruct(self, sess, x, eps):
-        """Transform a given input into its reconstruction"""
-        return sess.run(self.x_recon, feed_dict={self.x: x, self.eps: eps})
+    def recognize(self, sess, x, label):
+        """ Transform a given input into its latent represenation 
+
+        label should be an integer that will be converted into a one-hot representation
+        if not already in that format
+        """
+
+        if len(label.shape) == 1:
+            pos = label
+            label = np.zeros(shape=(1, self.num_categories))
+            label[:, pos] = 1
+
+        return sess.run(self.z_mean, feed_dict={self.x: x, self.labels: label})
+
+    def reconstruct(self, sess, x, label, eps):
+        """ Transform a given input into its reconstruction 
+
+        label should be an integer that will be converted into a one-hot representation
+        if not already in that format
+        """
+
+        if len(label.shape) == 1:
+            pos = label
+            label = np.zeros(shape=(1, self.num_categories))
+            label[:pos] = 1
+
+        return sess.run(self.x_recon, feed_dict={self.x: x, self.labels: label,
+                                                 self.eps: eps})
 
     def save_model(self, sess, save_file=None):
-        """Save model parameters"""
+        """ Save model parameters """
 
         assert save_file, 'Must specify filename to save model'
         self.saver.save(sess, save_file)
         print('Model saved to %s' % save_file)
 
     def load_model(self, sess, save_file=None):
-        """Load previously saved model parameters"""
+        """ Load previously saved model parameters """
 
         assert save_file, 'Must specify model location'
         self.saver.restore(sess, save_file)
