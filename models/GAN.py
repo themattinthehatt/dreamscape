@@ -14,6 +14,8 @@ import tensorflow as tf
 class GAN(object):
     """Generative Adversarial Network class"""
 
+    log_min = 1e-5
+
     def __init__(self,
                  layers_gen=None, layers_disc=None,
                  act_func=tf.nn.relu, batch_size=100, learning_rate=1e-3):
@@ -161,11 +163,13 @@ class GAN(object):
         """
 
         # define generator loss
-        self.loss_gen = -0.5 * tf.reduce_mean(tf.log(self.disc_gen))
+        self.loss_gen = -0.5 * tf.reduce_mean(
+            tf.log(self.log_min + self.disc_gen))
 
         # define discriminator loss
-        self.loss_disc = -0.5 * tf.reduce_mean(tf.log(self.disc_real) +
-                                               tf.log(1 - self.disc_gen))
+        self.loss_disc = -0.5 * tf.reduce_mean(
+            tf.log(self.log_min + self.disc_real) +
+            tf.log(self.log_min + 1.0 - self.disc_gen))
 
         # set aside variable collections
         self.params_gen = self.graph.get_collection(
@@ -201,7 +205,7 @@ class GAN(object):
 
                     # one step of optimization routine for disc network
                     x = data.train.next_batch(batch_size)
-                    z = np.random.randn(batch_size, self.layers_gen[0])
+                    z = np.random.rand(batch_size, self.layers_gen[0])
                     sess.run(self.train_step_disc,
                              feed_dict={self.gen_input: z,
                                         self.img_real: x[0]})
@@ -213,18 +217,16 @@ class GAN(object):
 
                 # print training updates
                 if display_epochs is not None and epoch % display_epochs == 0:
-                    train_accuracy_disc = sess.run(
-                        self.train_step_disc,
+                    z = np.random.randn(batch_size, self.layers_gen[0])
+                    [train_acc_disc, train_acc_gen] = sess.run(
+                        [self.loss_disc, self.loss_gen],
                         feed_dict={self.gen_input: z,
                                    self.img_real: x[0]})
-                    train_accuracy_gen = sess.run(
-                        self.train_step_gen,
-                        feed_dict={self.gen_input: z})
 
                     print('Epoch %03d: disc cost = %2.5f' %
-                          (epoch, train_accuracy_disc))
+                          (epoch, train_acc_disc))
                     print('Epoch %03d: gen cost = %2.5f' %
-                          (epoch, train_accuracy_gen))
+                          (epoch, train_acc_gen))
                     print('')
 
     def train_iters(self, sess, data,
@@ -258,6 +260,19 @@ class GAN(object):
                 train_accuracy = sess.run(self.cost, feed_dict={self.x: x[0],
                                                                 self.eps: eps})
                 print("Iter %03d: cost = %2.5f" % (tr_iter, train_accuracy))
+
+    def generate(self, sess, z=None):
+        """
+        Sample the network and generate an image 
+
+        If z is None, a random point is generated using the prior in the 
+        latent space, else z is used as the point in latent space
+        """
+
+        if z is None:
+            z = np.random.rand(1, self.layers_gen[0])
+
+        return sess.run([self.img_gen, self.disc_gen], feed_dict={self.gen_input: z})
 
     def save_model(self, sess, save_file=None):
         """ Save model parameters """

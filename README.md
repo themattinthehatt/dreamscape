@@ -13,3 +13,4 @@ Resources:
 Resources:
 * original gan paper - [Goodfellow et al. 2014](https://arxiv.org/abs/1406.2661)
 * tutorial paper - [Goodfellow 2017](https://arxiv.org/pdf/1701.00160.pdf)
+* dcgan paper - [Radford et al. 2016](https://arxiv.org/abs/1511.06434)

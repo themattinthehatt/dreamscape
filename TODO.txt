@@ -2,26 +2,27 @@ TODO (VAES)
 - (DONE 12/16) vae for mnist
 - (DONE 03/16) refactor code
 - (DONE 03/16) cvae for mnist
-- vae for cifar
-- dc-vae for cifar
-- dc-cvae for cifar
+- **vae for cifar
+- **dc-vae for cifar
+- **dc-cvae for cifar
 - dc-vae for imagenet
 - dc-cvae for imagenet
 
 TODO (GANS)
-- gan for mnist
+- ****gan for mnist
     - choose cost functions
     - train w/ labels/one-sided label smoothing?
-- cgan for mnist
-- dc-gan for cifar
+- **cgan for mnist
+- ***dc-gan for cifar
     - reference batch normalization/virtual batch normalization
-- dc-cgan for cifar
+- **dc-cgan for cifar
 - dc-gan for imagenet
 - dc-cgan for imagenet
 
 TODO (OTHER)
+- (DONE 04/16) abstract data loading/management class similar to tf's mnist
+- **get cifar data loader working
 - consolidate vae and cvae into single class?
-- abstract data loading/management class similar to tf's mnist
 - plug and play
 - visualization in open(web?)gl
 
@@ -29,9 +30,6 @@ TODO (OTHER)
 Resources:
 - Generative visual manipulation on the natural image manifold paper
   https://people.eecs.berkeley.edu/~junyanz/projects/gvm/eccv16_gvm.pdf
-- DCGAN papers
-  Unsupervised Rep Learning w DCGANs
-      https://arxiv.org/abs/1511.06434
 - DCGAN code
   https://github.com/Newmu/dcgan_code
 - autoencoding beyond pixels using a learned similarity metric
