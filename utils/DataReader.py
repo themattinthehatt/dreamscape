@@ -25,11 +25,3 @@ class DataReaderCIFAR(object):
     def __init__(self, data_dir, one_hot=True):
 
         raise NotImplementedError
-
-
-class DataReaderImagenet(object):
-    """DataReader class for imagenet"""
-
-    def __init__(self, data_dir, one_hot=True):
-
-        raise NotImplementedError

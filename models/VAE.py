@@ -14,6 +14,10 @@ import os
 import numpy as np
 import tensorflow as tf
 
+import sys
+sys.path.append('..')
+import utils.exceptions as exc
+
 
 class VAE(object):
     """Variational Autoencoder class
@@ -95,11 +99,11 @@ class VAE(object):
 
         # input checking
         if layers_encoder is None:
-            raise InputError('Must specify layer sizes for encoder')
+            raise exc.InputError('Must specify layer sizes for encoder')
         if layer_latent is None:
-            raise InputError('Must specify number of latent dimensions')
+            raise exc.InputError('Must specify number of latent dimensions')
         if layers_decoder is None:
-            raise InputError('Must specify layer sizes for decoder')
+            raise exc.InputError('Must specify layer sizes for decoder')
 
         self.input_size = layers_encoder[0]
         self.layers_encoder = layers_encoder[1:]
@@ -119,7 +123,7 @@ class VAE(object):
         elif act_func == 'elu':
             self.act_func = tf.nn.elu
         else:
-            raise InputError('Invalid activation function')
+            raise exc.InputError('Invalid activation function')
 
         self.learning_rate = learning_rate
 
@@ -361,11 +365,12 @@ class VAE(object):
 
         # check input
         if data is None:
-            raise InputError('data reader must be specified')
+            raise exc.InputError('data reader must be specified')
         if epochs_ckpt is not None and output_dir is None:
-            raise InputError('output_dir must be specified to save model')
+            raise exc.InputError('output_dir must be specified to save model')
         if epochs_summary is not None and output_dir is None:
-            raise InputError('output_dir must be specified to save summaries')
+            raise exc.InputError('output_dir must be specified to save ' +
+                                 'summaries')
 
         # initialize file writers
         if epochs_summary is not None:
@@ -468,11 +473,12 @@ class VAE(object):
 
         # check input
         if data is None:
-            raise InputError('data reader must be specified')
+            raise exc.InputError('data reader must be specified')
         if iters_ckpt is not None and output_dir is None:
-            raise InputError('output_dir must be specified to save model')
+            raise exc.InputError('output_dir must be specified to save model')
         if iters_summary is not None and output_dir is None:
-            raise InputError('output_dir must be specified to save summaries')
+            raise exc.InputError('output_dir must be specified to save ' +
+                                 'summaries')
 
         # initialize file writers
         if iters_summary is not None:
@@ -574,25 +580,7 @@ class VAE(object):
         """
 
         if not os.path.isfile(save_file + '.meta'):
-            raise InputError(str('%s is not a valid filename' % save_file))
+            raise exc.InputError(str('%s is not a valid filename' % save_file))
 
         self.saver.restore(sess, save_file)
         print('Model loaded from %s' % save_file)
-
-
-class Error(Exception):
-    """Base class for exceptions in this module."""
-    pass
-
-
-class InputError(Error):
-    """Exception raised for errors in the input.
-
-    Attributes:
-        expression -- input expression in which the error occurred
-        message -- explanation of the error
-    """
-
-    def __init__(self, message):
-        self.message = message
-        super(InputError, self).__init__(message)
