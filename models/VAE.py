@@ -430,21 +430,62 @@ class VAE(object):
             self,
             sess,
             data=None,
-            batch_size=None,
-            training_iters=20000,
-            display_iters=2000):
+            batch_size=128,
+            iters_training=1000,
+            iters_disp=None,
+            iters_ckpt=None,
+            iters_summary=None,
+            output_dir=None):
         """
-        Network training by specifying number of iterations rather than epochs
-        Used for easily generating sample outputs during training
+        Network training by specifying number of iterations rather than 
+        epochs. Used for easily generating sample outputs during training
+
+        Args:
+            sess (tf.Session object): current session object to run graph
+            data (DataReader object): input to network
+            batch_size (int, optional): batch size used by the gradient
+                descent-based optimizers
+            iters_training (int, optional): number of iters for gradient 
+                descent-based optimizers
+            iters_disp (int, optional): number of iters between updates to 
+                the console
+            iters_ckpt (int, optional): number of iters between saving 
+                checkpoint files
+            iters_summary (int, optional): number of iters between saving
+                network summary information 
+            output_dir (string, optional): absolute path for saving checkpoint
+                files and summary files; must be present if either iters_ckpt  
+                or iters_summary is not 'None'.
+
+        Returns:
+            None
+
+        Raises:
+            InputError: If iters_ckpt is not None and output_dir is None
+            InputError: If iters_summary is not None and output_dir is None
+
         """
 
-        assert data is not None, 'Must specify data reader object'
+        # check input
+        if data is None:
+            raise InputError('data reader must be specified')
+        if iters_ckpt is not None and output_dir is None:
+            raise InputError('output_dir must be specified to save model')
+        if iters_summary is not None and output_dir is None:
+            raise InputError('output_dir must be specified to save summaries')
 
+        # initialize file writers
+        if iters_summary is not None:
+            test_writer = tf.summary.FileWriter(
+                os.path.join(output_dir, 'summaries', 'test'),
+                sess.graph)
+
+        # begin training
         with self.graph.as_default():
 
-            batch_size = self.batch_size if batch_size is None else batch_size
+            # start training loop
+            for iter_ in range(iters_training):
 
-            for tr_iter in range(training_iters):
                 # get batch of data for this training step
                 x = data.train.next_batch(batch_size)
 
@@ -452,14 +493,39 @@ class VAE(object):
                 eps = np.random.normal(size=(batch_size, self.num_lvs))
 
                 # one step of optimization routine
-                sess.run(self.train_step, feed_dict={self.x: x[0],
-                                                     self.eps: eps})
+                sess.run(
+                    self.train_step,
+                    feed_dict={self.x: x[0], self.eps: eps})
 
-            # print training updates
-            if display_iters is not None and tr_iter % display_iters == 0:
-                train_accuracy = sess.run(self.cost, feed_dict={self.x: x[0],
-                                                                self.eps: eps})
-                print('Iter %03d: cost = %2.5f' % (tr_iter, train_accuracy))
+                # print training updates
+                if iters_disp is not None and iter_ % iters_disp == 0:
+                    # print updates using test set
+                    x = data.test.next_batch(data.test.num_examples)
+                    eps = np.random.normal(
+                        size=(data.test.num_examples, self.num_lvs))
+                    cost = sess.run(
+                        self.cost,
+                        feed_dict={self.x: x[0], self.eps: eps})
+                    print('Iter %03d:' % iter_)
+                    print('   test cost = %2.5f' % cost)
+
+                # save model checkpoints
+                if iters_ckpt is not None and iter_ % iters_ckpt == 0:
+                    save_file = os.path.join(
+                        output_dir, 'ckpts',
+                        str('epoch_%05g.ckpt' % iter_))
+                    self.save_model(sess, save_file)
+
+                # save model summaries
+                if iters_summary is not None and iter_ % iters_summary == 0:
+                    # output summaries using test set
+                    x = data.test.next_batch(data.test.num_examples)
+                    eps = np.random.normal(
+                        size=(data.test.num_examples, self.num_lvs))
+                    summary = sess.run(
+                        self.merge_summaries,
+                        feed_dict={self.x: x[0], self.eps: eps})
+                    test_writer.add_summary(summary, iter_)
 
     def generate(self, sess, z_mean=None):
         """ 
