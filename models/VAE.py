@@ -2,7 +2,7 @@
 
 """Variational Autoencoder class
 
-@author: Matt Whiteway, March 2017
+@author: Matt Whiteway, June 2017
 VAE class implements a variational autoencoder
 
 """
@@ -197,13 +197,13 @@ class VAE(object):
                 out_size = self.layers_encoder[layer]
                 self.weights_enc.append(tf.get_variable(
                     shape=[in_size, out_size],
-                    name=str('weights_enc_%01i' % layer),
-                    initializer=tf.random_normal_initializer(stddev=0.1)))
+                    name='weights',
+                    initializer=tf.truncated_normal_initializer(stddev=0.1)))
 
                 # initialize biases
                 self.biases_enc.append(tf.get_variable(
                     initializer=tf.zeros(shape=[1, out_size]),
-                    name=str('biases_enc_%01i' % layer)))
+                    name='biases'))
 
                 # calculate layer activations
                 pre = tf.add(
@@ -213,40 +213,40 @@ class VAE(object):
                 z_enc.append(post)
 
                 # save summaries of layer activations
-                with tf.variable_scope('summaries'):
-                    tf.summary.histogram('pre_act', pre)
-                    tf.summary.histogram('post_act', post)
+                tf.summary.histogram('pre_act', pre)
+                tf.summary.histogram('post_act', post)
 
         with tf.variable_scope('latent_layer'):
 
-            # initialize weights/biases for means of stochastic layer
-            self.weights_mean = tf.get_variable(
-                shape=[self.layers_encoder[-1], self.num_lvs],
-                name='weights_mean',
-                initializer=tf.truncated_normal_initializer(stddev=0.1))
-            self.biases_mean = tf.get_variable(
-                initializer=tf.zeros(shape=[1, self.num_lvs]),
-                name='biases_mean')
+            with tf.variable_scope('means'):
+                # initialize weights/biases for means of stochastic layer
+                self.weights_mean = tf.get_variable(
+                    shape=[self.layers_encoder[-1], self.num_lvs],
+                    name='weights',
+                    initializer=tf.truncated_normal_initializer(stddev=0.1))
+                self.biases_mean = tf.get_variable(
+                    initializer=tf.zeros(shape=[1, self.num_lvs]),
+                    name='biases')
+                # weights to estimate mean of normally distributed latent vars
+                self.z_mean = tf.add(
+                    tf.matmul(z_enc[-1], self.weights_mean), self.biases_mean,
+                    name='z_means')
 
-            # initialize weights/biases for log variances of stochastic layer
-            self.weights_log_var = tf.get_variable(
-                shape=[self.layers_encoder[-1], self.num_lvs],
-                name='weights_log_var',
-                initializer=tf.truncated_normal_initializer(stddev=0.1))
-            self.biases_log_var = tf.get_variable(
-                initializer=tf.zeros(shape=[1, self.num_lvs]),
-                name='biases_log_var')
-
-            # weights to estimate mean of normally distributed latent vars
-            self.z_mean = tf.add(
-                tf.matmul(z_enc[-1], self.weights_mean), self.biases_mean,
-                name='z_mean')
-            # estimating log of the variance is easier since the latent loss
-            # has a log determinant term
-            self.z_log_var = tf.add(
-                tf.matmul(z_enc[-1], self.weights_log_var),
-                self.biases_log_var,
-                name='z_log_var')
+            with tf.variable_scope('log_vars'):
+                # initialize weights/biases for log vars of stochastic layer
+                self.weights_log_var = tf.get_variable(
+                    shape=[self.layers_encoder[-1], self.num_lvs],
+                    name='weights',
+                    initializer=tf.truncated_normal_initializer(stddev=0.1))
+                self.biases_log_var = tf.get_variable(
+                    initializer=tf.zeros(shape=[1, self.num_lvs]),
+                    name='biases')
+                # estimating log of the variance is easier since the latent
+                # loss has a log determinant term
+                self.z_log_var = tf.add(
+                    tf.matmul(z_enc[-1], self.weights_log_var),
+                    self.biases_log_var,
+                    name='z_log_vars')
 
             # transform estimated mean and log variance into a sampled value
             # of the latent state using z = mu + sigma*epsilon
@@ -255,9 +255,8 @@ class VAE(object):
                 tf.multiply(tf.sqrt(tf.exp(self.z_log_var)), self.eps))
 
             # save summaries of means and log_vars
-            with tf.variable_scope('summaries'):
-                tf.summary.histogram('means', self.z_mean)
-                tf.summary.histogram('log_vars', self.z_log_var)
+            tf.summary.histogram('means', self.z_mean)
+            tf.summary.histogram('log_vars', self.z_log_var)
 
     def _define_generator_network(self):
         """ 
@@ -279,13 +278,13 @@ class VAE(object):
                 out_size = self.layers_decoder[layer]
                 self.weights_dec.append(tf.get_variable(
                     shape=[in_size, out_size],
-                    name=str('weights_dec_%01i' % layer),
+                    name='weights',
                     initializer=tf.truncated_normal_initializer(stddev=0.1)))
 
                 # initialize biases
                 self.biases_dec.append(tf.get_variable(
                     initializer=tf.zeros(shape=[1, out_size]),
-                    name=str('biases_dec_%01i' % layer)))
+                    name='biases'))
 
                 # calculate layer activations
                 pre = tf.add(
@@ -298,9 +297,8 @@ class VAE(object):
                 self.x_recon = z_dec[-1]
 
                 # save summaries of layer activations
-                with tf.variable_scope('summaries'):
-                    tf.summary.histogram('pre_act', pre)
-                    tf.summary.histogram('post_act', post)
+                tf.summary.histogram('pre_act', pre)
+                tf.summary.histogram('post_act', post)
 
     def _define_loss(self):
         """Define loss function that will be used to optimize model params"""
@@ -315,6 +313,8 @@ class VAE(object):
 
         # define cost
         self.cost = tf.reduce_mean(loss_recon + loss_latent)
+        # save summaries of cost
+        tf.summary.scalar('cost', self.cost)
 
     def _define_optimizer(self):
         """Define one step of the optimization routine"""
@@ -528,8 +528,7 @@ class VAE(object):
                     test_writer.add_summary(summary, iter_)
 
     def generate(self, sess, z_mean=None):
-        """ 
-        Sample the network and generate an image 
+        """Sample the network and generate an image 
 
         If z_mean is None, a random point is generated using the prior in
         the latent space, else z_mean is used as the point in latent space
