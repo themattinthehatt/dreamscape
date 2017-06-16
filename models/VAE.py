@@ -165,7 +165,6 @@ class VAE(object):
             self.merge_summaries = tf.summary.merge_all()
             # add variable initialization op to graph
             self.init = tf.global_variables_initializer()
-            # self.init = tf.initialize_all_variables()
 
     def _initialize_data_pipeline(self):
         """Create placeholders for input and random values"""
@@ -297,12 +296,12 @@ class VAE(object):
                 post = self.act_func(pre)
                 z_dec.append(post)
 
-                # define this for easier access later
-                self.x_recon = z_dec[-1]
-
                 # save summaries of layer activations
                 tf.summary.histogram('pre_act', pre)
                 tf.summary.histogram('post_act', post)
+
+        # define this for easier access later
+        self.x_recon = z_dec[-1]
 
     def _define_loss(self):
         """Define loss function that will be used to optimize model params"""
@@ -554,8 +553,7 @@ class VAE(object):
         return sess.run(self.x_recon, feed_dict={self.x: x, self.eps: eps})
 
     def save_model(self, sess, save_file):
-        """ 
-        Save model parameters 
+        """Save model parameters 
 
         Args:
             sess (tf.Session object): current session object to run graph
@@ -570,8 +568,7 @@ class VAE(object):
         print('Model saved to %s' % save_file)
 
     def load_model(self, sess, save_file):
-        """ 
-        Load previously saved model parameters 
+        """Load previously saved model parameters 
 
         Args:
             sess (tf.Session object): current session object to run graph
