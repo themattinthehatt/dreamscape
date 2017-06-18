@@ -540,7 +540,7 @@ class VAE(object):
         """
 
         if z_mean is None:
-            z_mean = np.random.normal(size=self.num_lvs)
+            z_mean = np.random.normal(size=(1, self.num_lvs))
 
         return sess.run(self.x_recon, feed_dict={self.z: z_mean})
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@author: Matt Whiteway, April 2017
-DataReader class that handles mnist, cifar10 and imagenet datasets
+@author: Matt Whiteway, June 2017
+DataReader class that handles mnist and cifar10 datasets
 """
 
 
@@ -24,4 +24,9 @@ class DataReaderCIFAR(object):
 
     def __init__(self, data_dir, one_hot=True):
 
-        raise NotImplementedError
+        import cifar10_input_data
+
+        cifar = cifar10_input_data.read_data_sets(data_dir, one_hot=one_hot)
+        self.train = cifar.train
+        self.test = cifar.test
+        self.validation = cifar.validation
